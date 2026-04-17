@@ -80,40 +80,68 @@ const SearchPage = () => {
     }
   }, [currentLanguage])
 
-  const performSearch = useCallback(async () => {
-    setIsLoading(true)
-    setError(null)
-    
-    try {
-      const response = await api.get('/search', {
-        params: {
-          q: query,
-          type: searchType,
-          category: filters.category !== 'all' ? filters.category : undefined,
-          language: filters.language !== 'all' ? filters.language : undefined,
-          date: filters.date !== 'all' ? filters.date : undefined,
-          page: currentPage,
-          limit: 10
-        }
-      })
+const performSearch = useCallback(async () => {
+  setIsLoading(true)
+  setError(null)
 
-      if (currentPage === 1) {
-        setResults(response.data.results)
-      } else {
-        setResults(prev => [...prev, ...response.data.results])
+  try {
+    // 🔹 1. Normal search (your existing logic)
+    const searchPromise = api.get('/search', {
+      params: {
+        q: query,
+        type: searchType,
+        category: filters.category !== 'all' ? filters.category : undefined,
+        language: filters.language !== 'all' ? filters.language : undefined,
+        date: filters.date !== 'all' ? filters.date : undefined,
+        page: currentPage,
+        limit: 10
       }
-      
-      setTotalResults(response.data.total)
-      setTotalPages(response.data.pages)
-      
-    } catch (error) {
-      console.error('Search failed:', error)
-      setError(error.response?.data?.message || 'Search failed. Please try again.')
-    } finally {
-      setIsLoading(false)
-    }
-  }, [query, searchType, filters, currentPage, currentLanguage])
+    })
 
+    // 🔹 2. AI chat (NEW)
+    const aiPromise = api.post('/chat', {
+      message: query
+    })
+
+    const [searchRes, aiRes] = await Promise.all([
+      searchPromise,
+      aiPromise
+    ])
+
+    // 🔹 AI answer safe extraction
+    const aiAnswer =
+      aiRes.data.answer ||
+      aiRes.data.response ||
+      aiRes.data
+
+    // 🔹 Normal results
+    const searchResults = searchRes.data.results
+
+    // 🔹 Merge results (NO breaking your structure)
+    const mergedResults = {
+      ai: aiAnswer,
+      list: searchResults
+    }
+
+    if (currentPage === 1) {
+      setResults(mergedResults)
+    } else {
+      setResults(prev => ({
+        ai: prev.ai || aiAnswer,
+        list: [...(prev.list || []), ...searchResults]
+      }))
+    }
+
+    setTotalResults(searchRes.data.total)
+    setTotalPages(searchRes.data.pages)
+
+  } catch (error) {
+    console.error('Search failed:', error)
+    setError(error.response?.data?.message || 'Search failed. Please try again.')
+  } finally {
+    setIsLoading(false)
+  }
+}, [query, searchType, filters, currentPage, currentLanguage])
   const fetchTrendingSearches = useCallback(async () => {
     try {
       const response = await api.get('/search/trending', {

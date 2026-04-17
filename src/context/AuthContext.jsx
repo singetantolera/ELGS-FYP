@@ -1,165 +1,89 @@
-import { createContext, useReducer, useEffect, useState } from 'react'
+import { createContext, useState, useEffect } from 'react'
 import authService from '../services/authService'
 
 export const AuthContext = createContext()
 
-const initialState = {
-  user: null,
-  isLoading: true,
-  error: null
-}
-
-const authReducer = (state, action) => {
-  switch (action.type) {
-    case 'SET_USER':
-      return {
-        ...state,
-        user: action.payload,
-        isLoading: false,
-        error: null
-      }
-    case 'SET_LOADING':
-      return {
-        ...state,
-        isLoading: action.payload
-      }
-    case 'SET_ERROR':
-      return {
-        ...state,
-        error: action.payload,
-        isLoading: false
-      }
-    case 'LOGOUT':
-      return {
-        ...state,
-        user: null,
-        isLoading: false,
-        error: null
-      }
-    default:
-      return state
-  }
-}
-
 export const AuthProvider = ({ children }) => {
-  const [state, dispatch] = useReducer(authReducer, initialState)
-  const [isInitialized, setIsInitialized] = useState(false)
+  const [user, setUser] = useState(null)
+  const [isLoading, setIsLoading] = useState(true)
 
+  // 🔥 INITIAL AUTH HYDRATION (MOST IMPORTANT)
   useEffect(() => {
     const initAuth = async () => {
+      const token = authService.getToken()
+
+      if (!token) {
+        setUser(null)
+        setIsLoading(false)
+        return
+      }
+
       try {
-        const user = authService.getCurrentUser()
-        const token = authService.getToken()
-        
-        if (user && token) {
-          dispatch({ type: 'SET_USER', payload: user })
-        } else {
-          dispatch({ type: 'SET_USER', payload: null })
-        }
+        // ✅ ALWAYS VERIFY WITH BACKEND
+        const data = await authService.getMe()
+        setUser(data.user || data) // depends on your API shape
+
+        // optional: sync cache
+        localStorage.setItem('user', JSON.stringify(data.user || data))
       } catch (error) {
-        console.error('Auth initialization error:', error)
-        dispatch({ type: 'SET_USER', payload: null })
+        console.error('Auth init failed:', error)
+
+        // ❌ invalid token → logout
+        await authService.logout()
+        setUser(null)
       } finally {
-        setIsInitialized(true)
+        setIsLoading(false)
       }
     }
 
     initAuth()
   }, [])
 
+  // ✅ LOGIN
   const login = async (email, password) => {
-    try {
-      dispatch({ type: 'SET_LOADING', payload: true })
-      const response = await authService.login(email, password)
-      dispatch({ type: 'SET_USER', payload: response.user })
-      return response
-    } catch (error) {
-      dispatch({ 
-        type: 'SET_ERROR', 
-        payload: error.response?.data?.message || 'Login failed' 
-      })
-      throw error
-    }
+    const data = await authService.login(email, password)
+
+    setUser(data.user)
+    return data
   }
 
+  // ✅ REGISTER
   const register = async (userData) => {
-    try {
-      dispatch({ type: 'SET_LOADING', payload: true })
-      const response = await authService.register(userData)
-      dispatch({ type: 'SET_USER', payload: response.user })
-      return response
-    } catch (error) {
-      dispatch({ 
-        type: 'SET_ERROR', 
-        payload: error.response?.data?.message || 'Registration failed' 
-      })
-      throw error
-    }
+    const data = await authService.register(userData)
+
+    setUser(data.user)
+    return data
   }
 
+  // ✅ LOGOUT
   const logout = async () => {
-    try {
-      await authService.logout()
-      dispatch({ type: 'LOGOUT' })
-    } catch (error) {
-      console.error('Logout error:', error)
-      dispatch({ type: 'LOGOUT' })
-    }
+    await authService.logout()
+    setUser(null)
   }
 
-  const updateProfile = async (userData) => {
-    try {
-      dispatch({ type: 'SET_LOADING', payload: true })
-      const response = await authService.updateProfile(userData)
-      dispatch({ type: 'SET_USER', payload: response.user })
-      return response
-    } catch (error) {
-      dispatch({ 
-        type: 'SET_ERROR', 
-        payload: error.response?.data?.message || 'Profile update failed' 
-      })
-      throw error
-    } finally {
-      dispatch({ type: 'SET_LOADING', payload: false })
-    }
+  // ✅ UPDATE PROFILE
+  const updateUser = (updatedUser) => {
+    setUser(updatedUser)
+    localStorage.setItem('user', JSON.stringify(updatedUser))
   }
 
-  const changePassword = async (passwordData) => {
-    try {
-      dispatch({ type: 'SET_LOADING', payload: true })
-      const response = await authService.changePassword(passwordData)
-      return response
-    } catch (error) {
-      dispatch({ 
-        type: 'SET_ERROR', 
-        payload: error.response?.data?.message || 'Password change failed' 
-      })
-      throw error
-    } finally {
-      dispatch({ type: 'SET_LOADING', payload: false })
-    }
-  }
-
-  const clearError = () => {
-    dispatch({ type: 'SET_ERROR', payload: null })
-  }
-
-  const value = {
-    user: state.user,
-    isLoading: state.isLoading || !isInitialized,
-    error: state.error,
-    login,
-    register,
-    logout,
-    updateProfile,
-    changePassword,
-    clearError,
-    isAuthenticated: !!state.user,
-    isAdmin: state.user?.role === 'admin'
-  }
+  // ✅ DERIVED STATES
+  const isAuthenticated = !!user
+  const isAdmin = user?.role === 'admin'
 
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider
+      value={{
+        user,
+        isLoading,
+        isAuthenticated,
+        isAdmin,
+        login,
+        register,
+        logout,
+        updateUser,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   )

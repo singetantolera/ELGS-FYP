@@ -5,7 +5,7 @@ import Loader from '../../common/Loader/Loader'
 import './Login.css'
 
 // API URL for social login
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -30,18 +30,44 @@ const Login = () => {
 
   // Check for OAuth callback params
   useEffect(() => {
-    const params = new URLSearchParams(location.search)
-    const token = params.get('token')
-    const error = params.get('error')
-    
-    if (token) {
-      // Store token and redirect
-      localStorage.setItem('token', token)
-      navigate('/dashboard')
-    } else if (error) {
-      setErrors({ general: `Google login failed: ${error}` })
+  const params = new URLSearchParams(location.search);
+  const token = params.get('token');
+  const error = params.get('error');
+
+  if (error) {
+    setErrors({ general: `Google login failed: ${error}` });
+    return;
+  }
+
+  if (!token) return;
+
+  const handleOAuthLogin = async () => {
+    try {
+      // OPTIONAL BUT IMPORTANT: verify token with backend
+      await fetch(`${API_URL}/auth/verify`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      // single source of truth
+      localStorage.setItem('token', token);
+
+      // clean URL
+      window.history.replaceState({}, '', '/login');
+
+      // redirect safely
+      navigate('/dashboard', { replace: true });
+
+    } catch (err) {
+      setErrors({ general: 'Invalid or expired login session' });
+
+      window.history.replaceState({}, '', '/login');
     }
-  }, [location, navigate])
+  };
+
+  handleOAuthLogin();
+}, [location, navigate]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target

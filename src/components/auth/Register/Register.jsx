@@ -5,7 +5,7 @@ import Loader from '../../common/Loader/Loader'
 import './Register.css'
 
 // API URL for social login
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -73,25 +73,31 @@ const Register = () => {
     return newErrors
   }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    const newErrors = validateForm()
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors)
-      return
-    }
-
-    setIsLoading(true)
-    try {
-      await register(formData)
-      navigate('/dashboard')
-    } catch (error) {
-      console.error('Registration error:', error)
-      setErrors({ general: error.response?.data?.message || 'Registration failed. Please try again.' })
-    } finally {
-      setIsLoading(false)
-    }
+ const handleSubmit = async (e) => {
+  e.preventDefault()
+  const newErrors = validateForm()
+  if (Object.keys(newErrors).length > 0) {
+    setErrors(newErrors)
+    return
   }
+
+  setIsLoading(true)
+  try {
+    // ✅ FIX: send only required fields
+    await register({
+      name: formData.fullName,
+      email: formData.email,
+      password: formData.password,
+    })
+
+    navigate('/dashboard')
+  } catch (error) {
+    console.error('Registration error:', error)
+    setErrors({ general: error.response?.data?.message || 'Registration failed. Please try again.' })
+  } finally {
+    setIsLoading(false)
+  }
+}
 
   // Enhanced Google Sign Up handler
   const handleGoogleSignUp = async () => {

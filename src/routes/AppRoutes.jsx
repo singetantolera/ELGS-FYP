@@ -1,5 +1,7 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
+import HistoryPage from '../pages/HistoryPage/HistoryPage'
+
 import Navbar from '../components/common/Navbar/Navbar'
 import Footer from '../components/common/Footer/Footer'
 import ProtectedRoute from '../components/auth/ProtectedRoute/ProtectedRoute'
@@ -22,13 +24,25 @@ import AccessibilityPage from '../pages/AccessibilityPage/AccessibilityPage'
 import VerifyEmailPage from '../pages/VerifyEmailPage/VerifyEmailPage'
 
 const AppRoutes = () => {
-  const { isAuthenticated, isAdmin } = useAuth()
+  const { isLoading } = useAuth()
+  const location = useLocation()
+
+  // Hide layout for auth pages
+  const hideLayout = ['/login', '/register']
+  const showLayout = !hideLayout.includes(location.pathname)
+
+  // ⛔ Prevent route rendering before auth is ready
+  if (isLoading) {
+    return <div className="app-loading">Loading...</div>
+  }
 
   return (
     <>
-      <Navbar />
+      {showLayout && <Navbar />}
+
       <main className="main-content">
         <Routes>
+          {/* Public Routes */}
           <Route path="/" element={<HomePage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/search" element={<SearchPage />} />
@@ -37,17 +51,13 @@ const AppRoutes = () => {
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/accessibility" element={<AccessibilityPage />} />
-         <Route path="/verify-email/:token" element={<VerifyEmailPage />} />
+          <Route path="/verify-email/:token" element={<VerifyEmailPage />} />
 
-          <Route 
-            path="/login" 
-            element={isAuthenticated ? <Navigate to="/dashboard" /> : <LoginPage />} 
-          />
-          <Route 
-            path="/register" 
-            element={isAuthenticated ? <Navigate to="/dashboard" /> : <RegisterPage />} 
-          />
+          {/* Auth Routes (NO duplicate isAuthenticated logic) */}
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
 
+          {/* Protected Routes */}
           <Route
             path="/dashboard"
             element={
@@ -56,6 +66,8 @@ const AppRoutes = () => {
               </ProtectedRoute>
             }
           />
+          <Route path="/history" element={<HistoryPage />} />
+
           <Route
             path="/chatbot"
             element={
@@ -64,6 +76,7 @@ const AppRoutes = () => {
               </ProtectedRoute>
             }
           />
+
           <Route
             path="/bookmarks"
             element={
@@ -72,6 +85,7 @@ const AppRoutes = () => {
               </ProtectedRoute>
             }
           />
+
           <Route
             path="/profile"
             element={
@@ -81,14 +95,7 @@ const AppRoutes = () => {
             }
           />
 
-          <Route
-            path="/admin"
-            element={
-              <ProtectedRoute requiredRole="admin">
-                <AdminDashboardPage />
-              </ProtectedRoute>
-            }
-          />
+          {/* Admin Routes */}
           <Route
             path="/admin/*"
             element={
@@ -98,10 +105,12 @@ const AppRoutes = () => {
             }
           />
 
+          {/* Catch all */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
-      <Footer />
+
+      {showLayout && <Footer />}
     </>
   )
 }

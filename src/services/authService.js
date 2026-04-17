@@ -1,19 +1,25 @@
 import api from './api'
 
 class AuthService {
-  async login(email, password) {
-    try {
-      const response = await api.post('/auth/login', { email, password })
-      if (response.data.token) {
-        localStorage.setItem('token', response.data.token)
-        localStorage.setItem('user', JSON.stringify(response.data.user))
-      }
-      return response.data
-    } catch (error) {
-      throw error
-    }
-  }
+ async login(email, password) {
+  const response = await api.post('/auth/login', {
+    email,
+    password
+  })
 
+  const { token, user } = response.data
+
+if (token) {
+  localStorage.setItem('token', token)
+  localStorage.setItem('user', JSON.stringify(user))
+}
+
+  return response.data
+}
+async getMe() {
+  const response = await api.get('/auth/me')
+  return response.data
+}
   async register(userData) {
     try {
       const response = await api.post('/auth/register', userData)
@@ -49,13 +55,20 @@ class AuthService {
   }
 
   async changePassword(passwordData) {
-    try {
-      const response = await api.post('/auth/change-password', passwordData)
-      return response.data
-    } catch (error) {
-      throw error
+  const token = localStorage.getItem('token');
+
+  const response = await api.post(
+    '/auth/change-password',
+    passwordData,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
     }
-  }
+  );
+
+  return response.data;
+}
 
   async forgotPassword(email) {
     try {
